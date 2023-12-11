@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
@@ -21,41 +21,40 @@ redis = StrictRedis(host="localhost", port=6379, db=0, decode_responses=True)
 
 CACHE_EXPIRATION_TIME = 60
 
-# def serialize_user(user):
 
+@app.before_request
+def before_request():
+    # print(request.endpoint)
+    if request.endpoint in ["signup", "login", "clear_cache", "get_user"]:
+        return
 
-# @app.before_request
-# def before_request():
-#     if request.endpoint in ["signup", "login", "clear-cache"]:
-#         return
+    token = request.headers.get("auth_token")
 
-#     token = request.headers.get("auth_token")
+    if token == None:
+        return jsonify({"error": "Missing Authorization header"}), 401
 
-#     if token == None:
-#         return jsonify({"error": "Missing Authorization header"}), 401
+    if not token:
+        return jsonify({"error": "Invalid token"}), 401
 
-#     if not token:
-#         return jsonify({"error": "Invalid token"}), 401
+    try:
+        payload = jwt.decode(token, app.config["SECRET_KEY"], algorithms="HS256")
+        request.user = payload
+        # print(payload)
+        # {
+        #     "access_token": "",
+        #     "refresh_token": "",
+        #     "user_email": "",
+        #     "details related to user": "",
+        # }
 
-#     try:
-#         payload = jwt.decode(token, app.config["SECRET_KEY"], algorithms="HS256")
-#         request.user = payload
-#         # print(payload)
-#         # {
-#         #     "access_token": "",
-#         #     "refresh_token": "",
-#         #     "user_email": "",
-#         #     "details related to user": "",
-#         # }
+        # check token expiry time
+        # user exists or not
+        # check the token has been logged out or not
 
-#         # check token expiry time
-#         # user exists or not
-#         # check the token has been logged out or not
-
-#     except jwt.ExpiredSignatureError:
-#         return jsonify({"error": "Token has expired"}), 401
-#     except jwt.InvalidTokenError:
-#         return jsonify({"error": "Invalid tokensss"}), 401
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Token has expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "Invalid tokensss"}), 401
 
 
 @app.route("/signup", methods=["POST"])
