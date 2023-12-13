@@ -1,9 +1,11 @@
-from flask import Flask, request, jsonify, redirect, url_for, session
-from flask_sqlalchemy import SQLAlchemy
+from flask import Flask, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
+
+# from flask_bcrypt import generate_password_hash, check_password_hash
 from datetime import datetime
 from dotenv import load_dotenv
 from dbModel import db, User, Login
+from sqlalchemy.orm import scoped_session, sessionmaker
 from redis import StrictRedis
 import jwt, os, json
 
@@ -14,8 +16,17 @@ app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("SQLALCHEMY_DATABASE_URI")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
+app.config["SQLALCHEMY_BINDS"] = {"slave": os.getenv("SQLALCHEMY_DATABASE_URI")}
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db.init_app(app)
+
+with app.app_context():
+    write_session = scoped_session(sessionmaker(autoflush=False, bind=db.engine))
+
+    read_session = scoped_session(
+        sessionmaker(autoflush=False, bind=db.get_engine(bind_key="slave"))
+    )
 
 redis = StrictRedis(host="localhost", port=6379, db=0, decode_responses=True)
 
@@ -25,7 +36,7 @@ CACHE_EXPIRATION_TIME = 60
 @app.before_request
 def before_request():
     # print(request.endpoint)
-    if request.endpoint in ["signup", "login", "clear_cache", "get_user"]:
+    if request.endpoint in ["signup", "login", "clear_cache", "get_user", "getall"]:
         return
 
     token = request.headers.get("auth_token")
@@ -57,6 +68,13 @@ def before_request():
         return jsonify({"error": "Invalid tokensss"}), 401
 
 
+@app.route("/getall", methods=["GET"])
+def getall():
+    users = read_session.query(User).all()
+    user_list = [user.email for user in users]
+    return jsonify({"users": user_list}), 200
+
+
 @app.route("/signup", methods=["POST"])
 def signup():
     data = request.get_json()
@@ -69,10 +87,11 @@ def signup():
     if user:
         return jsonify({"error": "User already exist"}), 400
 
-    hashed_password = generate_password_hash(password, method="sha256")
+    hashed_password = generate_password_hash(password, method="pbkdf2:sha256")
     newUser = User(name=name, email=email, mobile_no=mobile, password=hashed_password)
-    db.session.add(newUser)
-    db.session.commit()
+    write_session.add(newUser)
+    # db.session.commit()
+    write_session.commit()
 
     user_id = User.query.filter_by(email=email).first().id
     login_time = datetime.utcnow()

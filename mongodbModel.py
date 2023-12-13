@@ -7,6 +7,8 @@ app = Flask(__name__)
 
 db = MongoEngine()
 
+db_replica = MongoEngine()
+
 
 class Users(db.Document):
     meta = {

@@ -3,23 +3,17 @@ from dotenv import load_dotenv
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 from json import JSONEncoder
-from mongodbModel import Users, db
-import os
-
+from mongodbModel import Users, db, db_replica
 
 load_dotenv()
 
 app = Flask(__name__)
-
-app.secret_key = os.getenv("SECRET_KEY")
-
 
 app.config["MONGODB_SETTINGS"] = {
     "db": "flask_training",
     "host": "mongodb://localhost:27017/flask_training",
 }
 app.json_encoder = JSONEncoder
-
 
 db.init_app(app)
 
@@ -85,6 +79,7 @@ def getByID(email):
 def delete(email):
     try:
         user = Users.objects.get(email=email)
+        print("User:", user)
         user.delete()
         return jsonify({"message": "User deleted successfully"}), 200
     except Users.DoesNotExist:
