@@ -36,7 +36,14 @@ CACHE_EXPIRATION_TIME = 60
 @app.before_request
 def before_request():
     # print(request.endpoint)
-    if request.endpoint in ["signup", "login", "clear_cache", "get_user", "getall"]:
+    if request.endpoint in [
+        "signup",
+        "login",
+        "clear_cache",
+        "get_user",
+        "getall",
+        "upload",
+    ]:
         return
 
     token = request.headers.get("auth_token")
@@ -66,6 +73,19 @@ def before_request():
         return jsonify({"error": "Token has expired"}), 401
     except jwt.InvalidTokenError:
         return jsonify({"error": "Invalid tokensss"}), 401
+
+
+@app.route("/upload", methods=["POST"])
+def upload():
+    file = request.files["file"]
+    if file:
+        filename = os.path.join("uploads", file.filename)
+        file.save(filename)
+        return (
+            jsonify({"message": "File Uploaded successfuly", "filename": filename}),
+            200,
+        )
+    return jsonify({"error": "Failed to upload file", "filename": filename}), 400
 
 
 @app.route("/getall", methods=["GET"])
@@ -303,4 +323,6 @@ def delete_user(username):
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
+    if not os.path.exists("uploads"):
+        os.makedirs("uploads")
     app.run(debug=True)
